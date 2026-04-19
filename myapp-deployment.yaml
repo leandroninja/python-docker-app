@@ -1,7 +1,8 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: myapp-deployment
+  name: myapp
+  namespace: myapp
   labels:
     app: myapp
 spec:
@@ -14,10 +15,37 @@ spec:
       labels:
         app: myapp
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
       containers:
-      - name: myapp
-        image: gcr.io/ninja-project-326515/myapp:blue
-        ports:
-        - containerPort: 8888
-
-        
+        - name: myapp
+          image: gcr.io/ninja-project-326515/myapp:latest
+          ports:
+            - containerPort: 8888
+          env:
+            - name: APP_NAME
+              value: "Python Docker App"
+            - name: APP_COLOR
+              value: "#0d1117"
+            - name: PORT
+              value: "8888"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8888
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8888
+            initialDelaySeconds: 5
+            periodSeconds: 10
