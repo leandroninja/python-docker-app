@@ -1,19 +1,59 @@
-# Starter pipeline
-# Start with a minimal pipeline that you can customize to build and deploy your code.
-# Add steps that build, run tests, deploy, and more:
-# https://aka.ms/yaml
-
 trigger:
-- master
+  - main
 
 pool:
   vmImage: ubuntu-latest
 
-steps:
-- script: echo Hello, world!
-  displayName: 'Run a one-line script'
+variables:
+  IMAGE_NAME: "gcr.io/ninja-project-326515/myapp"
+  PYTHON_VERSION: "3.12"
 
-- script: |
-    echo Add other tasks to build, test, and deploy your project.
-    echo See https://aka.ms/yaml
-  displayName: 'Run a multi-line script'
+stages:
+  - stage: Verificar
+    displayName: Verificação de código
+    jobs:
+      - job: Lint
+        displayName: Lint e testes
+        steps:
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: "$(PYTHON_VERSION)"
+            displayName: Configurar Python $(PYTHON_VERSION)
+
+          - script: pip install tornado==6.4.2 pylint
+            displayName: Instalar dependências
+
+          - script: pylint server.py --disable=C,R --fail-under=7
+            displayName: Analisar código com pylint
+
+  - stage: Build
+    displayName: Build da imagem Docker
+    dependsOn: Verificar
+    jobs:
+      - job: Docker
+        displayName: Build e push
+        steps:
+          - script: |
+              docker build -t $(IMAGE_NAME):$(Build.BuildId) .
+              docker tag $(IMAGE_NAME):$(Build.BuildId) $(IMAGE_NAME):latest
+            displayName: Build da imagem
+
+          - script: |
+              echo "Push para o registry aqui (configurar credenciais)"
+              # docker push $(IMAGE_NAME):$(Build.BuildId)
+              # docker push $(IMAGE_NAME):latest
+            displayName: Push da imagem
+
+  - stage: Deploy
+    displayName: Deploy no Kubernetes
+    dependsOn: Build
+    jobs:
+      - job: K8s
+        displayName: Aplicar manifests
+        steps:
+          - script: |
+              kubectl apply -f namespace.yaml
+              kubectl apply -f myapp-deployment.yaml
+              kubectl apply -f myapp-service.yaml
+              kubectl rollout status deployment/myapp -n myapp
+            displayName: Deploy no cluster
